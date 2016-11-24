@@ -12,12 +12,19 @@ var IndexedDBCtrl={
 		var request=IndexedDBCtrl.getIndexedDB().open(IndexedDBCtrl.dbName);
 		request.onupgradeneeded = function(e) {
         	var db = e.target.result;
-        	console.log(IndexedDBCtrl.stores)
         	for(var i in IndexedDBCtrl.stores){
         		if(!db.objectStoreNames.contains(IndexedDBCtrl.stores[i].name)){
-					db.createObjectStore(IndexedDBCtrl.stores[i].name, {keyPath:IndexedDBCtrl.stores[i].key});
+					var store= db.createObjectStore(IndexedDBCtrl.stores[i].name, {keyPath:IndexedDBCtrl.stores[i].key});
+					for(var j in IndexedDBCtrl.stores[i].indexs){
+						var index = IndexedDBCtrl.stores[i].indexs[j];
+						store.createIndex(index.indexName, index.feild, {unique:index.unique}); 
+					}
 				}
         	}
+        }
+		request.onerror = function(e) {
+        	IndexedDBCtrl.delDB(dbName);
+        	IndexedDBCtrl.init(dbName, stores);
         }
 	},
 	getIndexedDB:function(){
@@ -30,16 +37,17 @@ var IndexedDBCtrl={
 		} 
 		return window.indexedDB;
 	},
-	open:function(storeName,handle){
+	open:function(storeName,handle, errHandle){
 		var request=IndexedDBCtrl.getIndexedDB().open(IndexedDBCtrl.dbName);
 		request.onerror=function(e){
-            console.log('OPen Error!', e);
+            errHandle(e);
         }
         request.onsuccess=function(e){
         	var db = e.target.result;
         	var transaction=db.transaction(storeName,'readwrite'); 
         	var store = transaction.objectStore(storeName); 
             handle(db, store);
+            IndexedDBCtrl.close(db);
         }
    },
 	close:function(db){
@@ -54,6 +62,45 @@ var IndexedDBCtrl={
 			var  result = e.target.result;
 			handle(result);
 		};
+	},
+	getAllData:function(store, handle){
+		var request=store.openCursor();
+		request.onsuccess=function(e){
+			var cursor=e.target.result;
+			handle(cursor);
+		};
+	},
+	getByIndex:function(store, indexName, val, handle){
+		var index = store.index(indexName);
+		var request=index.openCursor(IDBKeyRange.only(val))
+        request.onsuccess=function(e){
+            var cursor=e.target.result;
+            handle(cursor);
+        }
+	},
+	getDataByIndexRange:function(store, indexName, min, eqmin, max, eqmax, handle){
+		var index = store.index(indexName);
+		var request=index.openCursor(IDBKeyRange.bound(min, max, eqmin, eqmax))
+        request.onsuccess=function(e){
+            var cursor=e.target.result;
+            handle(cursor);
+        }
+	},
+	getMinByIndexRange:function(store, indexName, min, eqmin, handle){
+		var index = store.index(indexName);
+		var request=index.openCursor(IDBKeyRange.lowerBound(min, eqmin));
+        request.onsuccess=function(e){
+            var cursor=e.target.result;
+            handle(cursor);
+        }
+	},
+	getMaxByIndexRange:function(store, indexName, max, eqmax, handle){
+		var index = store.index(indexName);
+		var request=index.openCursor(IDBKeyRange.upperBound(max, eqmax));
+        request.onsuccess=function(e){
+            var cursor=e.target.result;
+            handle(cursor);
+        }
 	}
 };
 
